@@ -23,7 +23,7 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) Subscribe() {
-	ch := make(chan RespData)
+	ch := make(chan RespData, 500)
 	go Listeningbookticker(ch)
 	go func() {
 		for respdata := range ch {
