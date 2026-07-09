@@ -2,10 +2,16 @@ package asterfutures
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/Rin18/bookticker-manager/common"
 	"github.com/gorilla/websocket"
 )
+
+type rawRespData struct {
+	Stream string   `json:"stream"`
+	Data   respData `json:"data"`
+}
 
 type respData struct {
 	UpdateId  int64  `json:"u"`
@@ -16,9 +22,9 @@ type respData struct {
 	AskAmount string `json:"A"`
 }
 
-func listeningbookticker(ch chan<- respData) error {
-	params := "!bookTicker"
-	u := "wss://fstream.asterdex.com/ws/" + params
+func listeningbookticker(symbols []string, ch chan<- respData) error {
+	params := buildchannels(symbols)
+	u := "wss://fstream.asterdex.com/stream?streams=" + params
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		return err
@@ -29,12 +35,12 @@ func listeningbookticker(ch chan<- respData) error {
 		if err != nil {
 			return err
 		}
-		respdata := respData{}
+		respdata := rawRespData{}
 		err = json.Unmarshal(msg, &respdata)
 		if err != nil {
 			return err
 		}
-		ch <- respdata
+		ch <- respdata.Data
 	}
 }
 
@@ -57,4 +63,14 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	}
 	ticker := common.Ticker{Symbol: r.Symbol, UpdateId: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
+}
+
+func buildchannels(symbols []string) string {
+	channels := []string{}
+	for _, symbol := range symbols {
+		symbol = strings.ToLower(symbol)
+		channel := symbol + "@bookTicker"
+		channels = append(channels, channel)
+	}
+	return strings.Join(channels, "/")
 }
