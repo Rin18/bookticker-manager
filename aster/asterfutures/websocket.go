@@ -57,7 +57,7 @@ func (r *RespData) to_ticker(scale int) (Ticker, error) {
 	if err != nil {
 		return Ticker{}, err
 	}
-	ticker := Ticker{symbol: r.Symbol, updateid: r.UpdateId, bidprice: bidprice, bidamount: bidamount, askprice: askprice, askamount: askamount}
+	ticker := Ticker{symbol: r.Symbol, updateid: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
 

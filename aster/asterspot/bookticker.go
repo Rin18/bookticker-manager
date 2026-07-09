@@ -12,10 +12,10 @@ type Manager struct {
 type Ticker struct {
 	symbol    string
 	updateid  int64
-	bidprice  int64
-	bidamount int64
-	askprice  int64
-	askamount int64
+	BidPrice  int64
+	BidAmount int64
+	AskPrice  int64
+	AskAmount int64
 }
 
 func NewManager() *Manager {
