@@ -86,24 +86,24 @@ func listeningbookticker(symbols []string, ch chan<- respData) error {
 	}
 }
 
-func (r *respData) to_ticker(scale int) (Ticker, error) {
+func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.Ticker.Bid.Price, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	bidamount, err := common.Parsestringtoint64(r.Ticker.Bid.Size, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	askprice, err := common.Parsestringtoint64(r.Ticker.Ask.Price, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	askamount, err := common.Parsestringtoint64(r.Ticker.Ask.Size, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
-	ticker := Ticker{symbol: r.Ticker.Symbol, updateid: r.LastUpdatedAt, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Symbol: r.Ticker.Symbol, UpdateId: r.LastUpdatedAt, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
 

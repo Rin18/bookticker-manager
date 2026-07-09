@@ -4,23 +4,16 @@ import (
 	"log"
 	"maps"
 	"slices"
+
+	"github.com/Rin18/bookticker-manager/common"
 )
 
 type Manager struct {
-	tickers map[string]Ticker
-}
-
-type Ticker struct {
-	symbol    string
-	updateid  int64
-	BidPrice  int64
-	BidAmount int64
-	AskPrice  int64
-	AskAmount int64
+	tickers map[string]common.Ticker
 }
 
 func NewManager() *Manager {
-	return &Manager{make(map[string]Ticker)}
+	return &Manager{make(map[string]common.Ticker)}
 }
 
 func (m *Manager) Subscribe(symbols []string) {
@@ -32,7 +25,7 @@ func (m *Manager) Subscribe(symbols []string) {
 			if err != nil {
 				return
 			}
-			m.tickers[ticker.symbol] = ticker
+			m.tickers[ticker.Symbol] = ticker
 			log.Println(ticker)
 		}
 	}()
@@ -42,6 +35,6 @@ func (m *Manager) GetSymbolList() []string {
 	return slices.Collect(maps.Keys(m.tickers))
 }
 
-func (m *Manager) GetTicker(symbol string) Ticker {
+func (m *Manager) GetTicker(symbol string) common.Ticker {
 	return m.tickers[symbol]
 }

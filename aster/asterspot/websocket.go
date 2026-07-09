@@ -38,23 +38,23 @@ func listeningbookticker(ch chan<- respData) error {
 	}
 }
 
-func (r *respData) to_ticker(scale int) (Ticker, error) {
+func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.BidPrice, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	bidamount, err := common.Parsestringtoint64(r.BidAmount, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	askprice, err := common.Parsestringtoint64(r.AskPrice, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
 	askamount, err := common.Parsestringtoint64(r.AskAmount, scale)
 	if err != nil {
-		return Ticker{}, err
+		return common.Ticker{}, err
 	}
-	ticker := Ticker{symbol: r.Symbol, updateid: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Symbol: r.Symbol, UpdateId: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
