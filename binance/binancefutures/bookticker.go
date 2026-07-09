@@ -29,6 +29,21 @@ func (m *Manager) Subscribe(symbols []string) {
 	}()
 }
 
+func (m *Manager) SubscribeWithChan(symbols []string, channel chan<- common.Ticker) {
+	ch := make(chan respData, 500)
+	go listeningbookticker(symbols, ch)
+	go func() {
+		for respdata := range ch {
+			ticker, err := respdata.to_ticker(8)
+			if err != nil {
+				return
+			}
+			ticker.Exchange = "binancefutures"
+			channel <- ticker
+		}
+	}()
+}
+
 func (m *Manager) GetSymbolList() []string {
 	return slices.Collect(maps.Keys(m.tickers))
 }

@@ -1,6 +1,7 @@
 package common
 
 type Ticker struct {
+	Exchange  string
 	Symbol    string
 	UpdateId  int64
 	BidPrice  int64
