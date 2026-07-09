@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type RespData struct {
+type respData struct {
 	UpdateId  int64  `json:"u"`
 	Symbol    string `json:"s"`
 	BidPrice  string `json:"b"`
@@ -17,7 +17,7 @@ type RespData struct {
 	AskAmount string `json:"A"`
 }
 
-func Listeningbookticker(symbols []string, ch chan<- RespData) error {
+func listeningbookticker(symbols []string, ch chan<- respData) error {
 	params := buildparamshelper(symbols)
 	u := "wss://stream.binance.com:9443/ws/" + params
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
@@ -30,7 +30,7 @@ func Listeningbookticker(symbols []string, ch chan<- RespData) error {
 		if err != nil {
 			return err
 		}
-		respdata := RespData{}
+		respdata := respData{}
 		err = json.Unmarshal(msg, &respdata)
 		if err != nil {
 			return err
@@ -49,7 +49,7 @@ func buildparamshelper(symbols []string) string {
 	return strings.Join(params, "/")
 }
 
-func (r *RespData) to_ticker(scale int) (Ticker, error) {
+func (r *respData) to_ticker(scale int) (Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.BidPrice, scale)
 	if err != nil {
 		return Ticker{}, err

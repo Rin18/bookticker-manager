@@ -6,8 +6,8 @@ import (
 )
 
 func TestListeningbookticker(t *testing.T) {
-	ch := make(chan RespData, 500)
-	err := Listeningbookticker([]string{"btc", "eth", "doge", "sol"}, ch)
+	ch := make(chan respData, 500)
+	err := listeningbookticker([]string{"btc", "eth", "doge", "sol"}, ch)
 	if err != nil {
 		t.Errorf("error occured: %v", err)
 	}

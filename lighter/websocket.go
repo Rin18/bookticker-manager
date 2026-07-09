@@ -10,33 +10,33 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type SubscribeMessage struct {
+type subscribeMessage struct {
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
 }
 
-type RespQuote struct {
+type respQuote struct {
 	Price string `json:"price"`
 	Size  string `json:"size"`
 }
 
-type RespTicker struct {
+type respTicker struct {
 	Symbol        string    `json:"s"`
-	Ask           RespQuote `json:"a"`
-	Bid           RespQuote `json:"b"`
+	Ask           respQuote `json:"a"`
+	Bid           respQuote `json:"b"`
 	LastUpdatedAt int64     `json:"last_updated_at"`
 }
 
-type RespData struct {
+type respData struct {
 	Channel       string     `json:"channel"`
 	LastUpdatedAt int64      `json:"last_updated_at"`
 	Nonce         int64      `json:"nonce"`
-	Ticker        RespTicker `json:"ticker"`
+	Ticker        respTicker `json:"ticker"`
 	Timestamp     int64      `json:"timestamp"`
 	Type          string     `json:"type"`
 }
 
-func Listeningbookticker(symbols []string, ch chan<- RespData) error {
+func listeningbookticker(symbols []string, ch chan<- respData) error {
 	u := "wss://mainnet.zklighter.elliot.ai/stream"
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
@@ -47,7 +47,7 @@ func Listeningbookticker(symbols []string, ch chan<- RespData) error {
 	// subscribe to ticker
 	channels := buildchannels(symbols)
 	for _, channel := range channels {
-		msg := SubscribeMessage{
+		msg := subscribeMessage{
 			Type:    "subscribe",
 			Channel: channel,
 		}
@@ -74,7 +74,7 @@ func Listeningbookticker(symbols []string, ch chan<- RespData) error {
 		if err != nil {
 			return err
 		}
-		respdata := RespData{}
+		respdata := respData{}
 		err = json.Unmarshal(msg, &respdata)
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func Listeningbookticker(symbols []string, ch chan<- RespData) error {
 	}
 }
 
-func (r *RespData) to_ticker(scale int) (Ticker, error) {
+func (r *respData) to_ticker(scale int) (Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.Ticker.Bid.Price, scale)
 	if err != nil {
 		return Ticker{}, err

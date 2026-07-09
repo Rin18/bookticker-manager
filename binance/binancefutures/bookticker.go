@@ -23,8 +23,8 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) Subscribe(symbols []string) {
-	ch := make(chan RespData, 500)
-	go Listeningbookticker(symbols, ch)
+	ch := make(chan respData, 500)
+	go listeningbookticker(symbols, ch)
 	go func() {
 		for respdata := range ch {
 			ticker, err := respdata.to_ticker(8)
