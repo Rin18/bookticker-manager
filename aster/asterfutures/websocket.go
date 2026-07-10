@@ -3,6 +3,7 @@ package asterfutures
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 	"github.com/gorilla/websocket"
@@ -25,22 +26,43 @@ type respData struct {
 func listeningbookticker(symbols []string, ch chan<- respData) error {
 	params := buildchannels(symbols)
 	u := "wss://fstream.asterdex.com/stream?streams=" + params
-	c, _, err := websocket.DefaultDialer.Dial(u, nil)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
+	retrycount := 0
+	sleepduration := []time.Duration{0 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
+	lastretry := time.Now()
 	for {
-		_, msg, err := c.ReadMessage()
-		if err != nil {
-			return err
+		if time.Since(lastretry) > 120*time.Second {
+			retrycount = 0
 		}
-		respdata := rawRespData{}
-		err = json.Unmarshal(msg, &respdata)
-		if err != nil {
-			return err
+		if retrycount >= len(sleepduration) {
+			time.Sleep(sleepduration[len(sleepduration)-1])
+		} else {
+			time.Sleep(sleepduration[retrycount])
 		}
-		ch <- respdata.Data
+		lastretry = time.Now()
+		retrycount++
+		c, _, err := websocket.DefaultDialer.Dial(u, nil)
+		if err != nil {
+			continue
+		}
+
+		const pingwait = 320 * time.Second
+		c.SetReadDeadline(time.Now().Add(pingwait))
+		c.SetPingHandler(func(appData string) error {
+			c.SetReadDeadline(time.Now().Add(pingwait))
+			return c.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(5*time.Second))
+		})
+		for {
+			_, msg, err := c.ReadMessage()
+			if err != nil {
+				break
+			}
+			respdata := rawRespData{}
+			err = json.Unmarshal(msg, &respdata)
+			if err != nil {
+				break
+			}
+			ch <- respdata.Data
+		}
 	}
 }
 

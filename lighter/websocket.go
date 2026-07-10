@@ -38,51 +38,72 @@ type respData struct {
 
 func listeningbookticker(symbols []string, ch chan<- respData) error {
 	u := "wss://mainnet.zklighter.elliot.ai/stream"
-	c, _, err := websocket.DefaultDialer.Dial(u, nil)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	// subscribe to ticker
 	channels := buildchannels(symbols)
-	for _, channel := range channels {
-		msg := subscribeMessage{
-			Type:    "subscribe",
-			Channel: channel,
-		}
-		err = c.WriteJSON(msg)
-		if err != nil {
-			return err
-		}
-	}
-
-	// send ping
-	go func() {
-		for {
-			time.Sleep(90 * time.Second)
-			err := c.WriteMessage(websocket.PingMessage, nil)
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	// read messages
+	retrycount := 0
+	sleepduration := []time.Duration{0 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
+	lastconnect := time.Now()
+RetryLoop:
 	for {
-		_, msg, err := c.ReadMessage()
-		if err != nil {
-			return err
+		if time.Since(lastconnect) > 120*time.Second {
+			retrycount = 0
 		}
-		respdata := respData{}
-		err = json.Unmarshal(msg, &respdata)
-		if err != nil {
-			return err
+		if retrycount >= len(sleepduration) {
+			time.Sleep(sleepduration[len(sleepduration)-1])
+		} else {
+			time.Sleep(sleepduration[retrycount])
 		}
-		if respdata.Type != "update/ticker" {
+		lastconnect = time.Now()
+		retrycount++
+		c, _, err := websocket.DefaultDialer.Dial(u, nil)
+		if err != nil {
 			continue
 		}
-		ch <- respdata
+
+		for _, channel := range channels {
+			msg := subscribeMessage{
+				Type:    "subscribe",
+				Channel: channel,
+			}
+			err = c.WriteJSON(msg)
+			if err != nil {
+				continue RetryLoop
+			}
+		}
+
+		const pongwait = 100 * time.Second
+		c.SetReadDeadline(time.Now().Add(pongwait))
+		c.SetPongHandler(func(appData string) error {
+			c.SetReadDeadline(time.Now().Add(pongwait))
+			return nil
+		})
+
+		// send ping
+		go func() {
+			for {
+				time.Sleep(90 * time.Second)
+				err := c.WriteMessage(websocket.PingMessage, nil)
+				if err != nil {
+					return
+				}
+			}
+		}()
+
+		// read messages
+		for {
+			_, msg, err := c.ReadMessage()
+			if err != nil {
+				break
+			}
+			respdata := respData{}
+			err = json.Unmarshal(msg, &respdata)
+			if err != nil {
+				break
+			}
+			if respdata.Type != "update/ticker" {
+				continue
+			}
+			ch <- respdata
+		}
 	}
 }
 
