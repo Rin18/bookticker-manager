@@ -7,12 +7,6 @@ import (
 	"github.com/Rin18/bookticker-manager/common"
 )
 
-func TestSubscribe(t *testing.T) {
-	manager := NewManager()
-	manager.Subscribe([]string{"btcusdt", "ethusdt", "dogeusdt"})
-	select {}
-}
-
 func TestSubscribeWithChannel(t *testing.T) {
 	manager := NewManager()
 	ch := make(chan common.Ticker, 500)

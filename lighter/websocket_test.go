@@ -8,7 +8,7 @@ import (
 )
 
 func TestListeningbookticker(t *testing.T) {
-	ch := make(chan respData, 500)
+	ch := make(chan common.Ticker, 500)
 	statusch := make(chan common.WsStatus, 50)
 	err := listeningbookticker([]string{"btc", "eth", "doge", "sol"}, ch, statusch)
 	if err != nil {

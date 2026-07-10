@@ -15,34 +15,8 @@ func NewManager() *Manager {
 	return &Manager{make(map[string]common.Ticker)}
 }
 
-func (m *Manager) Subscribe(symbols []string) {
-	ch := make(chan respData, 500)
-	statusch := make(chan common.WsStatus, 500)
+func (m *Manager) SubscribeWithChan(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
 	go listeningbookticker(symbols, ch, statusch)
-	go func() {
-		for respdata := range ch {
-			ticker, err := respdata.to_ticker(8)
-			if err != nil {
-				return
-			}
-			m.tickers[ticker.Symbol] = ticker
-		}
-	}()
-}
-
-func (m *Manager) SubscribeWithChan(symbols []string, channel chan<- common.Ticker, statusch chan<- common.WsStatus) {
-	ch := make(chan respData, 500)
-	go listeningbookticker(symbols, ch, statusch)
-	go func() {
-		for respdata := range ch {
-			ticker, err := respdata.to_ticker(8)
-			if err != nil {
-				return
-			}
-			ticker.Exchange = "binancespot"
-			channel <- ticker
-		}
-	}()
 }
 
 func (m *Manager) GetSymbolList() []string {

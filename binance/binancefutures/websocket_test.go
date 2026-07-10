@@ -8,10 +8,10 @@ import (
 )
 
 func TestListeningTicker(t *testing.T) {
-	ch := make(chan respData, 50)
+	ch := make(chan common.Ticker, 50)
 	statusch := make(chan common.WsStatus, 50)
 	listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, ch, statusch)
-	for status := range statusch {
-		log.Println(status)
+	for ticker := range ch {
+		log.Println(ticker)
 	}
 }

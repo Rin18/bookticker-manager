@@ -36,7 +36,7 @@ type respData struct {
 	Type            string     `json:"type"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- respData, statusch chan<- common.WsStatus) error {
+func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
 	u := "wss://mainnet.zklighter.elliot.ai/stream"
 	channels := buildchannels(symbols)
 	retrycount := 0
@@ -107,16 +107,21 @@ RetryLoop:
 			if respdata.Type != "update/ticker" {
 				continue
 			}
+			ticker, err := respdata.to_ticker("lighter", 8)
+			if err != nil {
+				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
+				continue
+			}
 			if !hasSentHealthy {
 				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: true}
 				hasSentHealthy = true
 			}
-			ch <- respdata
+			ch <- ticker
 		}
 	}
 }
 
-func (r *respData) to_ticker(scale int) (common.Ticker, error) {
+func (r *respData) to_ticker(exchange string, scale int) (common.Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.Ticker.Bid.Price, scale)
 	if err != nil {
 		return common.Ticker{}, err
@@ -133,7 +138,7 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Symbol: r.Ticker.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Exchange: exchange, Symbol: r.Ticker.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
 

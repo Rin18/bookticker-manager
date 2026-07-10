@@ -21,7 +21,7 @@ type respData struct {
 	AskAmount       string `json:"A"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- respData, statusch chan<- common.WsStatus) error {
+func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
 	params := buildparamshelper(symbols)
 	u := "wss://fstream.binance.com/public/ws/" + params
 	retrycount := 0
@@ -62,11 +62,16 @@ func listeningbookticker(symbols []string, ch chan<- respData, statusch chan<- c
 				statusch <- common.WsStatus{Exchange: "binancefutures", IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
 				break
 			}
+			ticker, err := respdata.to_ticker("binancefutures", 8)
+			if err != nil {
+				statusch <- common.WsStatus{Exchange: "binancefutures", IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
+				continue
+			}
 			if !hasSentHealthy {
 				statusch <- common.WsStatus{Exchange: "binancefutures", IsHealthy: true}
 				hasSentHealthy = true
 			}
-			ch <- respdata
+			ch <- ticker
 		}
 	}
 }
@@ -81,7 +86,7 @@ func buildparamshelper(symbols []string) string {
 	return strings.Join(params, "/")
 }
 
-func (r *respData) to_ticker(scale int) (common.Ticker, error) {
+func (r *respData) to_ticker(exchange string, scale int) (common.Ticker, error) {
 	bidprice, err := common.Parsestringtoint64(r.BidPrice, scale)
 	if err != nil {
 		return common.Ticker{}, err
@@ -98,6 +103,6 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Symbol: r.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Exchange: exchange, Symbol: r.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }

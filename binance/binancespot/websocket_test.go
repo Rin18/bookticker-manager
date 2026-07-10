@@ -9,7 +9,7 @@ import (
 )
 
 func TestListeningTicker(t *testing.T) {
-	ch := make(chan respData, 50)
+	ch := make(chan common.Ticker, 50)
 	statusch := make(chan common.WsStatus, 50)
 	go listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, ch, statusch)
 	for status := range statusch {
@@ -27,12 +27,9 @@ func BenchmarkToTicker(b *testing.B) {
 	}
 	scale := 8
 
-	// 2. 重置计时器，排除初始化数据的干扰
 	b.ResetTimer()
-
-	// 3. 执行循环测试
 	for i := 0; i < b.N; i++ {
-		_, _ = r.to_ticker(scale)
+		_, _ = r.to_ticker("binancespot", scale)
 	}
 }
 
@@ -42,6 +39,6 @@ func BenchmarkUnmarshal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r := respData{}
 		_ = json.Unmarshal(msg, &r)
-		r.to_ticker(8)
+		r.to_ticker("binancespot", 8)
 	}
 }
