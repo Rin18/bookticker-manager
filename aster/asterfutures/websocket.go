@@ -50,13 +50,9 @@ func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch cha
 			continue
 		}
 
-		const pingwait = 320 * time.Second
-		c.SetReadDeadline(time.Now().Add(pingwait))
-		c.SetPingHandler(func(appData string) error {
-			c.SetReadDeadline(time.Now().Add(pingwait))
-			return c.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(5*time.Second))
-		})
+		const timeout = 150 * time.Millisecond
 		for {
+			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()
 			if err != nil {
 				statusch <- common.WsStatus{Exchange: "asterfutures", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}

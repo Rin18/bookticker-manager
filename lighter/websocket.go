@@ -73,13 +73,6 @@ RetryLoop:
 			}
 		}
 
-		const pongwait = 100 * time.Second
-		c.SetReadDeadline(time.Now().Add(pongwait))
-		c.SetPongHandler(func(appData string) error {
-			c.SetReadDeadline(time.Now().Add(pongwait))
-			return nil
-		})
-
 		// send ping
 		go func() {
 			for {
@@ -92,7 +85,9 @@ RetryLoop:
 		}()
 
 		// read messages
+		const timeout = 150 * time.Millisecond
 		for {
+			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()
 			if err != nil {
 				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
