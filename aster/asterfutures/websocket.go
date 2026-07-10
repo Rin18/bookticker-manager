@@ -26,7 +26,7 @@ type respData struct {
 	AskAmount       string `json:"A"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
+func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
 	params := buildchannels(symbols)
 	u := "wss://fstream.asterdex.com/stream?streams=" + params
 	retrycount := 0
@@ -50,7 +50,6 @@ func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch cha
 			continue
 		}
 
-		const timeout = 150 * time.Millisecond
 		for {
 			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()

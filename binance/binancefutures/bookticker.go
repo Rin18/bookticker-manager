@@ -3,6 +3,7 @@ package binancefutures
 import (
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 )
@@ -15,8 +16,8 @@ func NewManager() *Manager {
 	return &Manager{make(map[string]common.Ticker)}
 }
 
-func (m *Manager) SubscribeWithChan(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
-	go listeningbookticker(symbols, ch, statusch)
+func (m *Manager) SubscribeWithChan(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
+	go listeningbookticker(symbols, timeout, ch, statusch)
 }
 
 func (m *Manager) GetSymbolList() []string {

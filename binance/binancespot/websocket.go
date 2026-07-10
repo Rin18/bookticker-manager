@@ -18,7 +18,7 @@ type respData struct {
 	AskAmount string `json:"A"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
+func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
 	params := buildparamshelper(symbols)
 	u := "wss://stream.binance.com:9443/ws/" + params
 	retrycount := 0
@@ -41,7 +41,7 @@ func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch cha
 			statusch <- common.WsStatus{Exchange: "binancespot", IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
 			continue
 		}
-		const timeout = 150 * time.Millisecond
+
 		for {
 			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()

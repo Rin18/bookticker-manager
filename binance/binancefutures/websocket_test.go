@@ -3,6 +3,7 @@ package binancefutures
 import (
 	"log"
 	"testing"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 )
@@ -10,7 +11,7 @@ import (
 func TestListeningTicker(t *testing.T) {
 	ch := make(chan common.Ticker, 50)
 	statusch := make(chan common.WsStatus, 50)
-	listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, ch, statusch)
+	listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, 350*time.Millisecond, ch, statusch)
 	for ticker := range ch {
 		log.Println(ticker)
 	}

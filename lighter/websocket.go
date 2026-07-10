@@ -36,7 +36,7 @@ type respData struct {
 	Type            string     `json:"type"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
+func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
 	u := "wss://mainnet.zklighter.elliot.ai/stream"
 	channels := buildchannels(symbols)
 	retrycount := 0
@@ -85,7 +85,6 @@ RetryLoop:
 		}()
 
 		// read messages
-		const timeout = 150 * time.Millisecond
 		for {
 			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()

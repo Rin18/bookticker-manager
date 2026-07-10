@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 )
@@ -11,7 +12,7 @@ import (
 func TestListeningTicker(t *testing.T) {
 	ch := make(chan common.Ticker, 50)
 	statusch := make(chan common.WsStatus, 50)
-	go listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, ch, statusch)
+	go listeningbookticker([]string{"btcusdt", "ethusdt", "dogeusdt"}, 350*time.Millisecond, ch, statusch)
 	for status := range statusch {
 		log.Println(status)
 	}
