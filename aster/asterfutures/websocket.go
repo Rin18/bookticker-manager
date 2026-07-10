@@ -15,12 +15,15 @@ type rawRespData struct {
 }
 
 type respData struct {
-	UpdateId  int64  `json:"u"`
-	Symbol    string `json:"s"`
-	BidPrice  string `json:"b"`
-	BidAmount string `json:"B"`
-	AskPrice  string `json:"a"`
-	AskAmount string `json:"A"`
+	EventType       string `json:"e"`
+	UpdateId        int64  `json:"u"`
+	Symbol          string `json:"s"`
+	PushTime        int64  `json:"E"`
+	TransactionTime int64  `json:"T"`
+	BidPrice        string `json:"b"`
+	BidAmount       string `json:"B"`
+	AskPrice        string `json:"a"`
+	AskAmount       string `json:"A"`
 }
 
 func listeningbookticker(symbols []string, ch chan<- respData) error {
@@ -83,7 +86,7 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Symbol: r.Symbol, UpdateId: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Symbol: r.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
 

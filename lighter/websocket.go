@@ -28,12 +28,12 @@ type respTicker struct {
 }
 
 type respData struct {
-	Channel       string     `json:"channel"`
-	LastUpdatedAt int64      `json:"last_updated_at"`
-	Nonce         int64      `json:"nonce"`
-	Ticker        respTicker `json:"ticker"`
-	Timestamp     int64      `json:"timestamp"`
-	Type          string     `json:"type"`
+	Channel         string     `json:"channel"`
+	TransactionTime int64      `json:"last_updated_at"`
+	Nonce           int64      `json:"nonce"`
+	Ticker          respTicker `json:"ticker"`
+	PushTime        int64      `json:"timestamp"`
+	Type            string     `json:"type"`
 }
 
 func listeningbookticker(symbols []string, ch chan<- respData) error {
@@ -124,7 +124,7 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Symbol: r.Ticker.Symbol, UpdateId: r.LastUpdatedAt, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Symbol: r.Ticker.Symbol, PushTime: r.PushTime, TransactionTime: r.TransactionTime, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
 

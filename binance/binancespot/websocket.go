@@ -87,6 +87,6 @@ func (r *respData) to_ticker(scale int) (common.Ticker, error) {
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Symbol: r.Symbol, UpdateId: r.UpdateId, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{Symbol: r.Symbol, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
 	return ticker, nil
 }
