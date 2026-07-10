@@ -36,7 +36,7 @@ type respData struct {
 	Type            string     `json:"type"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- respData) error {
+func listeningbookticker(symbols []string, ch chan<- respData, statusch chan<- common.WsStatus) error {
 	u := "wss://mainnet.zklighter.elliot.ai/stream"
 	channels := buildchannels(symbols)
 	retrycount := 0
@@ -44,6 +44,7 @@ func listeningbookticker(symbols []string, ch chan<- respData) error {
 	lastconnect := time.Now()
 RetryLoop:
 	for {
+		hasSentHealthy := false
 		if time.Since(lastconnect) > 120*time.Second {
 			retrycount = 0
 		}
@@ -56,6 +57,7 @@ RetryLoop:
 		retrycount++
 		c, _, err := websocket.DefaultDialer.Dial(u, nil)
 		if err != nil {
+			statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
 			continue
 		}
 
@@ -66,6 +68,7 @@ RetryLoop:
 			}
 			err = c.WriteJSON(msg)
 			if err != nil {
+				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket subscribe failed: " + err.Error()}
 				continue RetryLoop
 			}
 		}
@@ -92,15 +95,21 @@ RetryLoop:
 		for {
 			_, msg, err := c.ReadMessage()
 			if err != nil {
+				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
 			}
 			respdata := respData{}
 			err = json.Unmarshal(msg, &respdata)
 			if err != nil {
+				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
 				break
 			}
 			if respdata.Type != "update/ticker" {
 				continue
+			}
+			if !hasSentHealthy {
+				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: true}
+				hasSentHealthy = true
 			}
 			ch <- respdata
 		}

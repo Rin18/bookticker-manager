@@ -17,7 +17,8 @@ func NewManager() *Manager {
 
 func (m *Manager) Subscribe(symbols []string) {
 	ch := make(chan respData, 500)
-	go listeningbookticker(symbols, ch)
+	statusch := make(chan common.WsStatus, 500)
+	go listeningbookticker(symbols, ch, statusch)
 	go func() {
 		for respdata := range ch {
 			ticker, err := respdata.to_ticker(8)
@@ -29,9 +30,9 @@ func (m *Manager) Subscribe(symbols []string) {
 	}()
 }
 
-func (m *Manager) SubscribeWithChan(symbols []string, channel chan<- common.Ticker) {
+func (m *Manager) SubscribeWithChan(symbols []string, channel chan<- common.Ticker, statusch chan<- common.WsStatus) {
 	ch := make(chan respData, 500)
-	go listeningbookticker(symbols, ch)
+	go listeningbookticker(symbols, ch, statusch)
 	go func() {
 		for respdata := range ch {
 			ticker, err := respdata.to_ticker(8)

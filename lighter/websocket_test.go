@@ -3,11 +3,14 @@ package lighter
 import (
 	"log"
 	"testing"
+
+	"github.com/Rin18/bookticker-manager/common"
 )
 
 func TestListeningbookticker(t *testing.T) {
 	ch := make(chan respData, 500)
-	err := listeningbookticker([]string{"btc", "eth", "doge", "sol"}, ch)
+	statusch := make(chan common.WsStatus, 50)
+	err := listeningbookticker([]string{"btc", "eth", "doge", "sol"}, ch, statusch)
 	if err != nil {
 		t.Errorf("error occured: %v", err)
 	}

@@ -18,13 +18,14 @@ type respData struct {
 	AskAmount string `json:"A"`
 }
 
-func listeningbookticker(symbols []string, ch chan<- respData) error {
+func listeningbookticker(symbols []string, ch chan<- respData, statusch chan<- common.WsStatus) error {
 	params := buildparamshelper(symbols)
 	u := "wss://stream.binance.com:9443/ws/" + params
 	retrycount := 0
 	sleepduration := []time.Duration{0 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
 	lastretry := time.Now()
 	for {
+		hasSentHealthy := false
 		if time.Since(lastretry) > 120*time.Second {
 			retrycount = 0
 		}
@@ -37,6 +38,7 @@ func listeningbookticker(symbols []string, ch chan<- respData) error {
 		retrycount++
 		c, _, err := websocket.DefaultDialer.Dial(u, nil)
 		if err != nil {
+			statusch <- common.WsStatus{Exchange: "binancespot", IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
 			continue
 		}
 		const pingwait = 25 * time.Second
@@ -48,12 +50,18 @@ func listeningbookticker(symbols []string, ch chan<- respData) error {
 		for {
 			_, msg, err := c.ReadMessage()
 			if err != nil {
+				statusch <- common.WsStatus{Exchange: "binancespot", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
 			}
 			respdata := respData{}
 			err = json.Unmarshal(msg, &respdata)
 			if err != nil {
+				statusch <- common.WsStatus{Exchange: "binancespot", IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
 				break
+			}
+			if !hasSentHealthy {
+				statusch <- common.WsStatus{Exchange: "binancespot", IsHealthy: true}
+				hasSentHealthy = true
 			}
 			ch <- respdata
 		}

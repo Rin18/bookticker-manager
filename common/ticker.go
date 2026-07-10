@@ -10,3 +10,9 @@ type Ticker struct {
 	AskPrice        int64
 	AskAmount       int64
 }
+
+type WsStatus struct {
+	Exchange  string
+	IsHealthy bool
+	ErrorMsg  string
+}
