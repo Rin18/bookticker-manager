@@ -3,6 +3,7 @@ package common
 type Ticker struct {
 	Exchange        string
 	Symbol          string
+	ReceiveTime     int64
 	PushTime        int64
 	TransactionTime int64
 	BidPrice        int64

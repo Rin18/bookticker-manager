@@ -53,6 +53,7 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 		for {
 			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()
+			receiveTime := time.Now().UnixMicro()
 			if err != nil {
 				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
@@ -72,6 +73,7 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: true}
 				hasSentHealthy = true
 			}
+			ticker.ReceiveTime = receiveTime
 			ch <- ticker
 		}
 	}

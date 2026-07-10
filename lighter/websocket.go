@@ -88,6 +88,7 @@ RetryLoop:
 		for {
 			c.SetReadDeadline(time.Now().Add(timeout))
 			_, msg, err := c.ReadMessage()
+			receiveTime := time.Now().UnixMicro()
 			if err != nil {
 				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
@@ -110,6 +111,7 @@ RetryLoop:
 				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: true}
 				hasSentHealthy = true
 			}
+			ticker.ReceiveTime = receiveTime
 			ch <- ticker
 		}
 	}
