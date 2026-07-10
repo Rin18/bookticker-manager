@@ -57,7 +57,7 @@ RetryLoop:
 		retrycount++
 		c, _, err := websocket.DefaultDialer.Dial(u, nil)
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
+			statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
 			continue
 		}
 
@@ -68,7 +68,7 @@ RetryLoop:
 			}
 			err = c.WriteJSON(msg)
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket subscribe failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket subscribe failed: " + err.Error()}
 				continue RetryLoop
 			}
 		}
@@ -90,13 +90,13 @@ RetryLoop:
 			_, msg, err := c.ReadMessage()
 			receiveTime := time.Now().UnixMicro()
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
 			}
 			respdata := respData{}
 			err = json.Unmarshal(msg, &respdata)
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
 				break
 			}
 			if respdata.Type != "update/ticker" {
@@ -104,11 +104,11 @@ RetryLoop:
 			}
 			ticker, err := respdata.to_ticker("lighter", 8)
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
 				continue
 			}
 			if !hasSentHealthy {
-				statusch <- common.WsStatus{Exchange: "lighter", IsHealthy: true}
+				statusch <- common.WsStatus{Exchange: "lighter", Timestamp: time.Now().UnixMicro(), IsHealthy: true}
 				hasSentHealthy = true
 			}
 			ticker.ReceiveTime = receiveTime

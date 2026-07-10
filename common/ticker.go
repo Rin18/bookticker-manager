@@ -14,6 +14,7 @@ type Ticker struct {
 
 type WsStatus struct {
 	Exchange  string
+	Timestamp int64
 	IsHealthy bool
 	ErrorMsg  string
 }

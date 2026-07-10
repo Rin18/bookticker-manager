@@ -46,7 +46,7 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 		retrycount++
 		c, _, err := websocket.DefaultDialer.Dial(u, nil)
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
+			statusch <- common.WsStatus{Exchange: "asterspot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
 			continue
 		}
 
@@ -55,22 +55,22 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 			_, msg, err := c.ReadMessage()
 			receiveTime := time.Now().UnixMicro()
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "asterspot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
 				break
 			}
 			respdata := rawRespData{}
 			err = json.Unmarshal(msg, &respdata)
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "asterspot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
 				break
 			}
 			ticker, err := respdata.Data.to_ticker("asterspot", 8)
 			if err != nil {
-				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
+				statusch <- common.WsStatus{Exchange: "asterspot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
 				continue
 			}
 			if !hasSentHealthy {
-				statusch <- common.WsStatus{Exchange: "asterspot", IsHealthy: true}
+				statusch <- common.WsStatus{Exchange: "asterspot", Timestamp: time.Now().UnixMicro(), IsHealthy: true}
 				hasSentHealthy = true
 			}
 			ticker.ReceiveTime = receiveTime
