@@ -1,7 +1,7 @@
 package okxfutures
 
 import (
-	"log"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -10,11 +10,16 @@ import (
 
 func TestStart(t *testing.T) {
 	client := NewWsClient()
-	symbols := []string{"btc-usdt", "eth-usdt"}
+	symbols := []string{"btc-usdt-swap", "eth-usdt-swap"}
 	ch := make(chan common.Ticker, 500)
 	statusch := make(chan common.WsStatus, 500)
 	go client.Start(symbols, 5*time.Second, ch, statusch)
+	go func() {
+		for statusmsg := range statusch {
+			slog.Info("msg", "statusmsg: ", statusmsg)
+		}
+	}()
 	for msg := range ch {
-		log.Println(msg)
+		slog.Info("msg", "msg: ", msg)
 	}
 }

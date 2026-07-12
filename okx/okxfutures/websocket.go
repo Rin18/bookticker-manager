@@ -3,6 +3,7 @@ package okxfutures
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -55,21 +56,35 @@ func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- comm
 	w.timeout = timeout
 	w.ch = ch
 	w.statusch = statusch
+	retrycount := 0
+	sleepduration := []time.Duration{0 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
+	lastconnect := time.Now()
 	for {
+		if time.Since(lastconnect) > 120*time.Second {
+			retrycount = 0
+		}
+		if retrycount >= len(sleepduration) {
+			time.Sleep(sleepduration[len(sleepduration)-1])
+		} else {
+			time.Sleep(sleepduration[retrycount])
+		}
+		lastconnect = time.Now()
+		retrycount++
+
 		err := w.connect()
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Connect to websocket error: %v", err)}
+			statusch <- common.WsStatus{Exchange: "okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Connect to websocket error: %v", err)}
 			continue
 		}
 		err = w.subscribe(symbols)
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Subscribe websocket error: %v", err)}
+			statusch <- common.WsStatus{Exchange: "okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Subscribe websocket error: %v", err)}
 			continue
 		}
-		statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: true, ErrorMsg: ""}
+		statusch <- common.WsStatus{Exchange: "okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: true, ErrorMsg: ""}
 		err = w.readLoop()
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Read Message error: %v", err)}
+			statusch <- common.WsStatus{Exchange: "okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Read Message error: %v", err)}
 			continue
 		}
 	}
@@ -111,6 +126,7 @@ func (w *WsClient) readLoop() error {
 		rawresp := rawResponse{}
 		err = json.Unmarshal(msg, &rawresp)
 		if err != nil {
+			slog.Error("websocket read loop error", "json unmarshal error: ", err, "exchange: ", w.baseurl)
 			continue
 		}
 		if rawresp.Data[0].Timestamp == "" {
@@ -118,6 +134,7 @@ func (w *WsClient) readLoop() error {
 		}
 		ticker, err := rawresp.to_ticker(scale)
 		if err != nil {
+			slog.Error("websocket read loop error", "to ticker error: ", err, "exchange: ", w.baseurl)
 			continue
 		}
 		ticker.ReceiveTime = receiveTime
@@ -147,7 +164,7 @@ func (r *rawResponse) to_ticker(scale int) (common.Ticker, error) {
 		return common.Ticker{}, err
 	}
 	ticker := common.Ticker{
-		Exchange:        "OKXFutures",
+		Exchange:        "okxfutures",
 		Symbol:          r.Arg.InstID,
 		TransactionTime: timestamp,
 		BidPrice:        bidprice,
