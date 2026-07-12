@@ -1,18 +1,25 @@
 package okxfutures
 
 import (
-	"log"
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 	"github.com/gorilla/websocket"
 )
 
 const baseurl = "wss://ws.okx.com:8443/ws/v5/public"
+const scale = 8
 
 type WsClient struct {
-	baseurl string
-	conn    *websocket.Conn
+	baseurl  string
+	conn     *websocket.Conn
+	timeout  time.Duration
+	ch       chan<- common.Ticker
+	statusch chan<- common.WsStatus
 }
 
 type subscribeMsg struct {
@@ -26,23 +33,45 @@ type arg struct {
 	InstID  string `json:"instId"`
 }
 
+type rawResponse struct {
+	Arg  arg         `json:"arg"`
+	Data [1]respData `json:"data"`
+}
+
+type respData struct {
+	Asks       [1][4]string `json:"asks"`
+	Bids       [1][4]string `json:"bids"`
+	Timestamp  string       `json:"ts"`
+	SequenceID int64        `json:"seqId"`
+}
+
 func NewWsClient() *WsClient {
 	return &WsClient{
 		baseurl: baseurl,
 	}
 }
 
-func (w *WsClient) Start(symbols []string, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
+func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
+	w.timeout = timeout
+	w.ch = ch
+	w.statusch = statusch
 	for {
 		err := w.connect()
 		if err != nil {
+			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Connect to websocket error: %v", err)}
 			continue
 		}
 		err = w.subscribe(symbols)
 		if err != nil {
+			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Subscribe websocket error: %v", err)}
 			continue
 		}
-		w.readLoop(ch, statusch)
+		statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: true, ErrorMsg: ""}
+		err = w.readLoop()
+		if err != nil {
+			statusch <- common.WsStatus{Exchange: "Okxfutures", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: fmt.Sprintf("Read Message error: %v", err)}
+			continue
+		}
 	}
 }
 
@@ -71,13 +100,60 @@ func (w *WsClient) subscribe(symbols []string) error {
 	return nil
 }
 
-func (w *WsClient) readLoop(ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
+func (w *WsClient) readLoop() error {
 	for {
+		w.conn.SetReadDeadline(time.Now().Add(w.timeout))
 		_, msg, err := w.conn.ReadMessage()
 		if err != nil {
-			// pending
+			return err
+		}
+		receiveTime := time.Now().UnixMicro()
+		rawresp := rawResponse{}
+		err = json.Unmarshal(msg, &rawresp)
+		if err != nil {
 			continue
 		}
-		log.Println(string(msg))
+		if rawresp.Data[0].Timestamp == "" {
+			continue
+		}
+		ticker, err := rawresp.to_ticker(scale)
+		if err != nil {
+			continue
+		}
+		ticker.ReceiveTime = receiveTime
+		w.ch <- ticker
 	}
+}
+
+func (r *rawResponse) to_ticker(scale int) (common.Ticker, error) {
+	bidprice, err := common.Parsestringtoint64(r.Data[0].Bids[0][0], scale)
+	if err != nil {
+		return common.Ticker{}, err
+	}
+	bidamount, err := common.Parsestringtoint64(r.Data[0].Bids[0][1], scale)
+	if err != nil {
+		return common.Ticker{}, err
+	}
+	askprice, err := common.Parsestringtoint64(r.Data[0].Asks[0][0], scale)
+	if err != nil {
+		return common.Ticker{}, err
+	}
+	askamount, err := common.Parsestringtoint64(r.Data[0].Asks[0][1], scale)
+	if err != nil {
+		return common.Ticker{}, err
+	}
+	timestamp, err := strconv.ParseInt(r.Data[0].Timestamp, 10, 64)
+	if err != nil {
+		return common.Ticker{}, err
+	}
+	ticker := common.Ticker{
+		Exchange:        "OKXFutures",
+		Symbol:          r.Arg.InstID,
+		TransactionTime: timestamp,
+		BidPrice:        bidprice,
+		BidAmount:       bidamount,
+		AskPrice:        askprice,
+		AskAmount:       askamount,
+	}
+	return ticker, nil
 }

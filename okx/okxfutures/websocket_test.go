@@ -1,7 +1,9 @@
 package okxfutures
 
 import (
+	"log"
 	"testing"
+	"time"
 
 	"github.com/Rin18/bookticker-manager/common"
 )
@@ -11,5 +13,8 @@ func TestStart(t *testing.T) {
 	symbols := []string{"btc-usdt", "eth-usdt"}
 	ch := make(chan common.Ticker, 500)
 	statusch := make(chan common.WsStatus, 500)
-	client.Start(symbols, ch, statusch)
+	go client.Start(symbols, 5*time.Second, ch, statusch)
+	for msg := range ch {
+		log.Println(msg)
+	}
 }
