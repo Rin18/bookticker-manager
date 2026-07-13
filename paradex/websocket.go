@@ -139,6 +139,7 @@ func (w *WsClient) readLoop() error {
 			continue
 		}
 		ticker.ReceiveTime = receiveTime
+		ticker.NormalizeTs()
 		w.ch <- ticker
 	}
 }

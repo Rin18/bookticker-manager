@@ -112,6 +112,7 @@ RetryLoop:
 				hasSentHealthy = true
 			}
 			ticker.ReceiveTime = receiveTime
+			ticker.NormalizeTs()
 			ch <- ticker
 		}
 	}

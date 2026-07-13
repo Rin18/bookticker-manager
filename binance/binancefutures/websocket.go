@@ -69,6 +69,7 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 				hasSentHealthy = true
 			}
 			ticker.ReceiveTime = receiveTime
+			ticker.NormalizeTs()
 			ch <- ticker
 		}
 	}

@@ -18,3 +18,22 @@ type WsStatus struct {
 	IsHealthy bool
 	ErrorMsg  string
 }
+
+func (t *Ticker) NormalizeTs() {
+	t.ReceiveTime = normalizeToUs(t.ReceiveTime)
+	t.PushTime = normalizeToUs(t.PushTime)
+	t.TransactionTime = normalizeToUs(t.TransactionTime)
+}
+
+func normalizeToUs(ts int64) int64 {
+	if ts < 100_000_000_000 {
+		return ts * 1_000_000
+	}
+	if ts < 100_000_000_000_000 {
+		return ts * 1_000
+	}
+	if ts < 100_000_000_000_000_000 {
+		return ts
+	}
+	return ts / 1_000
+}
