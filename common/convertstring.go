@@ -7,6 +7,9 @@ import (
 )
 
 func Parsestringtoint64(s string, scale int) (int64, error) {
+	if s == "" {
+		return 0, nil
+	}
 	multiple := power10(scale)
 	parts := strings.Split(s, ".")
 	if len(parts) == 1 {

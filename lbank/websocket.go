@@ -417,8 +417,12 @@ func (r *rawResponse) toTicker(
 	}
 
 	// LBank bid 从高到低排列，所以 Bids[0] 是最高买价。
+	bidPriceStr := trimDecimalScale(r.Bids[0][0], scale)
+	bidAmountStr := trimDecimalScale(r.Bids[0][1], scale)
+	askPriceStr := trimDecimalScale(r.Asks[0][0], scale)
+	askAmountStr := trimDecimalScale(r.Asks[0][1], scale)
 	bidprice, err := common.Parsestringtoint64(
-		r.Bids[0][0],
+		bidPriceStr,
 		scale,
 	)
 	if err != nil {
@@ -426,7 +430,7 @@ func (r *rawResponse) toTicker(
 	}
 
 	bidamount, err := common.Parsestringtoint64(
-		r.Bids[0][1],
+		bidAmountStr,
 		scale,
 	)
 	if err != nil {
@@ -435,7 +439,7 @@ func (r *rawResponse) toTicker(
 
 	// LBank ask 从低到高排列，所以 Asks[0] 是最低卖价。
 	askprice, err := common.Parsestringtoint64(
-		r.Asks[0][0],
+		askPriceStr,
 		scale,
 	)
 	if err != nil {
@@ -443,7 +447,7 @@ func (r *rawResponse) toTicker(
 	}
 
 	askamount, err := common.Parsestringtoint64(
-		r.Asks[0][1],
+		askAmountStr,
 		scale,
 	)
 	if err != nil {
@@ -463,4 +467,19 @@ func (r *rawResponse) toTicker(
 	}
 
 	return ticker, nil
+}
+
+func trimDecimalScale(s string, scale int) string {
+	s = strings.TrimSpace(s)
+
+	dot := strings.IndexByte(s, '.')
+	if dot == -1 {
+		return s
+	}
+
+	if len(s)-dot-1 <= scale {
+		return s
+	}
+
+	return s[:dot+1+scale]
 }

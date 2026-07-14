@@ -10,10 +10,10 @@ import (
 
 func TestStart(t *testing.T) {
 	client := NewWsClient()
-	client.SetDepthDecimal("ETHUSDT", "0.01")
+	client.SetDepthDecimal("SUPERUSDT", "0.0001")
 	ch := make(chan common.Ticker, 500)
 	statusch := make(chan common.WsStatus, 500)
-	symbols := []string{"ETHUSDT"}
+	symbols := []string{"SUPERUSDT"}
 	go client.Start(symbols, 5*time.Second, ch, statusch)
 	go func() {
 		for statusmsg := range statusch {
