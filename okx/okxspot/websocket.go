@@ -80,6 +80,7 @@ func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- comm
 			w.sendStatus(err.Error())
 			continue
 		}
+		go w.sendPings()
 		err = w.readLoop()
 		if err != nil {
 			w.sendStatus(err.Error())
@@ -115,7 +116,7 @@ func (w *WsClient) subscribe(symbols []string) error {
 
 func (w *WsClient) readLoop() error {
 	for {
-		w.conn.SetReadDeadline(time.Now().Add(w.timeout))
+		w.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		_, msg, err := w.conn.ReadMessage()
 		if err != nil {
 			return err
@@ -142,6 +143,19 @@ func (w *WsClient) readLoop() error {
 		ticker.ReceiveTime = receiveTime
 		ticker.NormalizeTs()
 		w.ch <- ticker
+	}
+}
+
+func (w *WsClient) sendPings() {
+	defer w.conn.Close()
+	for {
+		time.Sleep(25 * time.Second)
+		w.conn.SetWriteDeadline(time.Now().Add(w.timeout))
+		err := w.conn.WriteMessage(websocket.PingMessage, nil)
+		if err != nil {
+			w.sendStatus(err.Error())
+			return
+		}
 	}
 }
 
