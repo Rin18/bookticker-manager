@@ -26,11 +26,12 @@ const (
 )
 
 type WsClient struct {
-	baseurl  string
-	conn     *websocket.Conn
-	timeout  time.Duration
-	ch       chan<- common.Ticker
-	statusch chan<- common.WsStatus
+	baseurl   string
+	conn      *websocket.Conn
+	timeout   time.Duration
+	ch        chan<- common.Ticker
+	statusch  chan<- common.WsStatus
+	ishealthy bool
 
 	writeMu sync.Mutex
 
@@ -96,24 +97,13 @@ func (w *WsClient) SetDepthDecimal(symbol, decimal string) {
 	w.decimalBySymbol[symbol] = decimal
 }
 
-func (w *WsClient) Start(
-	symbols []string,
-	timeout time.Duration,
-	ch chan<- common.Ticker,
-	statusch chan<- common.WsStatus,
-) {
+func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
 	w.timeout = timeout
 	w.ch = ch
 	w.statusch = statusch
 
 	retrycount := 0
-	sleepduration := []time.Duration{
-		0,
-		2 * time.Second,
-		5 * time.Second,
-		10 * time.Second,
-		15 * time.Second,
-	}
+	sleepduration := []time.Duration{0, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
 
 	lastconnect := time.Now()
 
@@ -132,41 +122,21 @@ func (w *WsClient) Start(
 		retrycount++
 
 		if err := w.connect(); err != nil {
-			w.reportStatus(false, fmt.Sprintf(
-				"Connect to websocket error: %v",
-				err,
-			))
+			w.sendStatus(err.Error())
 			continue
 		}
 
 		if err := w.subscribe(symbols); err != nil {
-			w.reportStatus(false, fmt.Sprintf(
-				"Subscribe websocket error: %v",
-				err,
-			))
+			w.sendStatus(err.Error())
 			w.close()
 			continue
 		}
 
-		w.reportStatus(true, "")
-
 		if err := w.readLoop(); err != nil {
-			w.reportStatus(false, fmt.Sprintf(
-				"Read message error: %v",
-				err,
-			))
+			w.sendStatus(err.Error())
 		}
 
 		w.close()
-	}
-}
-
-func (w *WsClient) reportStatus(healthy bool, errorMsg string) {
-	w.statusch <- common.WsStatus{
-		Exchange:  "lbankfutures",
-		Timestamp: time.Now().UnixMicro(),
-		IsHealthy: healthy,
-		ErrorMsg:  errorMsg,
 	}
 }
 
@@ -287,12 +257,7 @@ func (w *WsClient) readLoop() error {
 
 		var rawresp rawResponse
 		if err := json.Unmarshal(msg, &rawresp); err != nil {
-			// 心跳等非 Depth 消息不需要当作致命错误。
-			slog.Debug(
-				"ignore non-depth websocket message",
-				"error", err,
-				"exchange", w.baseurl,
-			)
+			w.sendStatus(err.Error())
 			continue
 		}
 
@@ -304,21 +269,14 @@ func (w *WsClient) readLoop() error {
 		// z=3 是初始快照，z=4 是持续快照。
 		if rawresp.Type != 3 && rawresp.Type != 4 {
 			if rawresp.Type == 14 {
-				slog.Error(
-					"lbank depth subscription rejected",
-					"tsn", rawresp.TSN,
-					"message", string(msg),
-				)
+				w.sendStatus(fmt.Sprintf("lbank subscription rejected, %v", string(msg)))
 			}
 			continue
 		}
 
 		symbol := w.symbolByTSN[rawresp.TSN]
 		if symbol == "" {
-			slog.Warn(
-				"unknown lbank depth subscription",
-				"tsn", rawresp.TSN,
-			)
+			w.sendStatus(fmt.Sprintf("unknown lbank symbol, %v", string(msg)))
 			continue
 		}
 
@@ -329,15 +287,13 @@ func (w *WsClient) readLoop() error {
 
 		ticker, err := rawresp.toTicker(symbol, scale)
 		if err != nil {
-			slog.Error(
-				"websocket read loop error",
-				"error", err,
-				"exchange", w.baseurl,
-				"symbol", symbol,
-			)
+			w.sendStatus(err.Error())
 			continue
 		}
 
+		if !w.ishealthy {
+			w.sendStatus("")
+		}
 		ticker.ReceiveTime = receiveTime
 		ticker.NormalizeTs()
 
@@ -402,6 +358,17 @@ func (w *WsClient) close() {
 
 	_ = w.conn.Close()
 	w.conn = nil
+}
+
+func (w *WsClient) sendStatus(errorMsg string) {
+	w.ishealthy = errorMsg == ""
+	statusMsg := common.WsStatus{
+		Exchange:  w.baseurl,
+		Timestamp: time.Now().UnixMicro(),
+		ErrorMsg:  errorMsg,
+		IsHealthy: w.ishealthy,
+	}
+	w.statusch <- statusMsg
 }
 
 func (r *rawResponse) toTicker(

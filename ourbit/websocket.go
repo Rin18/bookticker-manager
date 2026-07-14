@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -22,11 +21,12 @@ const (
 )
 
 type WsClient struct {
-	baseurl  string
-	conn     *websocket.Conn
-	timeout  time.Duration
-	ch       chan<- common.Ticker
-	statusch chan<- common.WsStatus
+	baseurl   string
+	conn      *websocket.Conn
+	timeout   time.Duration
+	ch        chan<- common.Ticker
+	statusch  chan<- common.WsStatus
+	ishealthy bool
 
 	// contractSpecs maps an Ourbit symbol to its volume conversion metadata.
 	// The values are loaded once before the websocket is connected and are
@@ -104,13 +104,7 @@ func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- comm
 	w.statusch = statusch
 
 	retrycount := 0
-	sleepduration := []time.Duration{
-		0,
-		2 * time.Second,
-		5 * time.Second,
-		10 * time.Second,
-		15 * time.Second,
-	}
+	sleepduration := []time.Duration{0, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
 	lastconnect := time.Now()
 
 	for {
@@ -126,52 +120,25 @@ func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- comm
 		retrycount++
 
 		if err := w.ensureContractSizes(symbols); err != nil {
-			statusch <- common.WsStatus{
-				Exchange:  "ourbitfutures",
-				Timestamp: time.Now().UnixMicro(),
-				IsHealthy: false,
-				ErrorMsg:  fmt.Sprintf("Load contract details error: %v", err),
-			}
+			w.sendStatus(err.Error())
 			continue
 		}
 
 		if err := w.connect(); err != nil {
-			statusch <- common.WsStatus{
-				Exchange:  "ourbitfutures",
-				Timestamp: time.Now().UnixMicro(),
-				IsHealthy: false,
-				ErrorMsg:  fmt.Sprintf("Connect to websocket error: %v", err),
-			}
+			w.sendStatus(err.Error())
 			continue
 		}
 
 		if err := w.subscribe(symbols); err != nil {
 			_ = w.conn.Close()
-			statusch <- common.WsStatus{
-				Exchange:  "ourbitfutures",
-				Timestamp: time.Now().UnixMicro(),
-				IsHealthy: false,
-				ErrorMsg:  fmt.Sprintf("Subscribe websocket error: %v", err),
-			}
+			w.sendStatus(err.Error())
 			continue
-		}
-
-		statusch <- common.WsStatus{
-			Exchange:  "ourbitfutures",
-			Timestamp: time.Now().UnixMicro(),
-			IsHealthy: true,
-			ErrorMsg:  "",
 		}
 
 		err := w.readLoop()
 		_ = w.conn.Close()
 		if err != nil {
-			statusch <- common.WsStatus{
-				Exchange:  "ourbitfutures",
-				Timestamp: time.Now().UnixMicro(),
-				IsHealthy: false,
-				ErrorMsg:  fmt.Sprintf("Read message error: %v", err),
-			}
+			w.sendStatus(err.Error())
 		}
 	}
 }
@@ -294,10 +261,8 @@ func (w *WsClient) readLoop() error {
 	lastBySymbol := make(map[string]snapshotKey, 16)
 
 	for {
-		if w.timeout > 0 {
-			if err := w.conn.SetReadDeadline(time.Now().Add(w.timeout)); err != nil {
-				return err
-			}
+		if err := w.conn.SetReadDeadline(time.Now().Add(w.timeout)); err != nil {
+			return err
 		}
 
 		_, msg, err := w.conn.ReadMessage()
@@ -308,11 +273,7 @@ func (w *WsClient) readLoop() error {
 
 		var env envelope
 		if err := json.Unmarshal(msg, &env); err != nil {
-			slog.Error(
-				"websocket read loop error",
-				"json unmarshal error", err,
-				"exchange", w.baseurl,
-			)
+			w.sendStatus(err.Error())
 			continue
 		}
 
@@ -320,11 +281,7 @@ func (w *WsClient) readLoop() error {
 		case "rs.sub.depth.step", "pong":
 			continue
 		case "rs.error", "rs.error.depth.step":
-			slog.Error(
-				"ourbit websocket server error",
-				"channel", env.Channel,
-				"data", string(env.Data),
-			)
+			w.sendStatus(err.Error())
 			continue
 		case "push.depth.step":
 			// Continue below.
@@ -334,11 +291,7 @@ func (w *WsClient) readLoop() error {
 
 		var rawresp rawResponse
 		if err := json.Unmarshal(msg, &rawresp); err != nil {
-			slog.Error(
-				"websocket read loop error",
-				"depth unmarshal error", err,
-				"exchange", w.baseurl,
-			)
+			w.sendStatus(err.Error())
 			continue
 		}
 
@@ -360,22 +313,18 @@ func (w *WsClient) readLoop() error {
 
 		contractSpec, ok := w.contractSpecs[rawresp.Symbol]
 		if !ok {
-			slog.Error(
-				"websocket read loop error",
-				"contractSize not found", rawresp.Symbol,
-				"exchange", w.baseurl,
-			)
+			w.sendStatus(err.Error())
 			continue
 		}
 
 		ticker, err := rawresp.toTicker(scale, contractSpec)
 		if err != nil {
-			slog.Error(
-				"websocket read loop error",
-				"to ticker error", err,
-				"exchange", w.baseurl,
-			)
+			w.sendStatus(err.Error())
 			continue
+		}
+
+		if !w.ishealthy {
+			w.sendStatus("")
 		}
 		ticker.ReceiveTime = receiveTime
 		ticker.NormalizeTs()
@@ -409,6 +358,17 @@ func (w *WsClient) heartbeatLoop(stop <-chan struct{}, done chan<- struct{}) {
 			}
 		}
 	}
+}
+
+func (w *WsClient) sendStatus(errorMsg string) {
+	w.ishealthy = errorMsg == ""
+	statusMsg := common.WsStatus{
+		Exchange:  w.baseurl,
+		Timestamp: time.Now().UnixMicro(),
+		ErrorMsg:  errorMsg,
+		IsHealthy: w.ishealthy,
+	}
+	w.statusch <- statusMsg
 }
 
 func (r *rawResponse) toTicker(scale int, spec contractSpec) (common.Ticker, error) {
