@@ -2,6 +2,7 @@ package binancespot
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,8 +10,32 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const baseurl = "wss://stream.binance.com:9443/stream"
+const scale = 8
+
+type WsClient struct {
+	exchange  string
+	baseurl   string
+	conn      *websocket.Conn
+	timeout   time.Duration
+	ch        chan<- common.Ticker
+	statusch  chan<- common.WsStatus
+	ishealthy bool
+}
+
+type subscribeMsg struct {
+	Method string   `json:"method"`
+	Params []string `json:"params"`
+	ID     string   `json:"id"`
+}
+
+type rawResponse struct {
+	Stream string   `json:"stream"`
+	Data   respData `json:"data"`
+}
+
 type respData struct {
-	UpdateId  int64  `json:"u"`
+	UpdateID  int64  `json:"u"`
 	Symbol    string `json:"s"`
 	BidPrice  string `json:"b"`
 	BidAmount string `json:"B"`
@@ -18,15 +43,22 @@ type respData struct {
 	AskAmount string `json:"A"`
 }
 
-func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) error {
-	params := buildparamshelper(symbols)
-	u := "wss://stream.binance.com:9443/ws/" + params
+func NewWsClient() *WsClient {
+	return &WsClient{
+		exchange: "binancespot",
+		baseurl:  baseurl,
+	}
+}
+
+func (w *WsClient) Start(symbols []string, timeout time.Duration, ch chan<- common.Ticker, statusch chan<- common.WsStatus) {
+	w.timeout = timeout
+	w.ch = ch
+	w.statusch = statusch
 	retrycount := 0
 	sleepduration := []time.Duration{0 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
-	lastretry := time.Now()
+	lastconnect := time.Now()
 	for {
-		hasSentHealthy := false
-		if time.Since(lastretry) > 120*time.Second {
+		if time.Since(lastconnect) > 120*time.Second {
 			retrycount = 0
 		}
 		if retrycount >= len(sleepduration) {
@@ -34,71 +66,118 @@ func listeningbookticker(symbols []string, timeout time.Duration, ch chan<- comm
 		} else {
 			time.Sleep(sleepduration[retrycount])
 		}
-		lastretry = time.Now()
+		lastconnect = time.Now()
 		retrycount++
-		c, _, err := websocket.DefaultDialer.Dial(u, nil)
+
+		err := w.connect()
 		if err != nil {
-			statusch <- common.WsStatus{Exchange: "binancespot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket dial failed: " + err.Error()}
+			w.sendStatus(err.Error())
 			continue
 		}
-
-		for {
-			c.SetReadDeadline(time.Now().Add(timeout))
-			_, msg, err := c.ReadMessage()
-			receiveTime := time.Now().UnixMicro()
-			if err != nil {
-				statusch <- common.WsStatus{Exchange: "binancespot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket read failed: " + err.Error()}
-				break
-			}
-			respdata := respData{}
-			err = json.Unmarshal(msg, &respdata)
-			if err != nil {
-				statusch <- common.WsStatus{Exchange: "binancespot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "websocket unmarshal failed: " + err.Error()}
-				break
-			}
-			ticker, err := respdata.to_ticker("binancespot", 8)
-			if err != nil {
-				statusch <- common.WsStatus{Exchange: "binancespot", Timestamp: time.Now().UnixMicro(), IsHealthy: false, ErrorMsg: "respdata to_ticker failed: " + err.Error()}
-				continue
-			}
-			if !hasSentHealthy {
-				statusch <- common.WsStatus{Exchange: "binancespot", Timestamp: time.Now().UnixMicro(), IsHealthy: true}
-				hasSentHealthy = true
-			}
-			ticker.ReceiveTime = receiveTime
-			ticker.NormalizeTs()
-			ch <- ticker
+		err = w.subscribe(symbols)
+		if err != nil {
+			w.sendStatus(err.Error())
+			continue
+		}
+		err = w.readLoop()
+		if err != nil {
+			w.sendStatus(err.Error())
+			continue
 		}
 	}
 }
 
-func buildparamshelper(symbols []string) string {
-	params := []string{}
-	for _, symbol := range symbols {
-		lowercasedSymbol := strings.ToLower(symbol)
-		streamName := lowercasedSymbol + "@bookTicker"
-		params = append(params, streamName)
+func (w *WsClient) connect() error {
+	c, _, err := websocket.DefaultDialer.Dial(w.baseurl, nil)
+	if err != nil {
+		return err
 	}
-	return strings.Join(params, "/")
+	w.conn = c
+	return nil
 }
 
-func (r *respData) to_ticker(exchange string, scale int) (common.Ticker, error) {
-	bidprice, err := common.Parsestringtoint64(r.BidPrice, scale)
+func (w *WsClient) subscribe(symbols []string) error {
+	params := []string{}
+	for _, symbol := range symbols {
+		symbol = strings.ToLower(symbol)
+		param := symbol + "@bookTicker"
+		params = append(params, param)
+	}
+	subscribeMsg := subscribeMsg{Method: "SUBSCRIBE", Params: params, ID: "123456"}
+	err := w.conn.WriteJSON(subscribeMsg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *WsClient) readLoop() error {
+	for {
+		w.conn.SetReadDeadline(time.Now().Add(w.timeout))
+		_, msg, err := w.conn.ReadMessage()
+		if err != nil {
+			return err
+		}
+		receiveTime := time.Now().UnixMicro()
+		rawresp := rawResponse{}
+		err = json.Unmarshal(msg, &rawresp)
+		if err != nil {
+			w.sendStatus(err.Error())
+			continue
+		}
+		if rawresp.Data.BidPrice == "" {
+			w.sendStatus(fmt.Sprintf("Received abnomal message: %v", rawresp))
+			continue
+		}
+		ticker, err := rawresp.to_ticker(scale)
+		if err != nil {
+			w.sendStatus(err.Error())
+			continue
+		}
+		if !w.ishealthy {
+			w.sendStatus("")
+		}
+		ticker.Exchange = w.exchange
+		ticker.ReceiveTime = receiveTime
+		ticker.NormalizeTs()
+		w.ch <- ticker
+	}
+}
+
+func (w *WsClient) sendStatus(errorMsg string) {
+	w.ishealthy = errorMsg == ""
+	statusMsg := common.WsStatus{
+		Exchange:  w.exchange,
+		Timestamp: time.Now().UnixMicro(),
+		ErrorMsg:  errorMsg,
+		IsHealthy: w.ishealthy,
+	}
+	w.statusch <- statusMsg
+}
+
+func (r *rawResponse) to_ticker(scale int) (common.Ticker, error) {
+	bidprice, err := common.Parsestringtoint64(r.Data.BidPrice, scale)
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	bidamount, err := common.Parsestringtoint64(r.BidAmount, scale)
+	bidamount, err := common.Parsestringtoint64(r.Data.BidAmount, scale)
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	askprice, err := common.Parsestringtoint64(r.AskPrice, scale)
+	askprice, err := common.Parsestringtoint64(r.Data.AskPrice, scale)
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	askamount, err := common.Parsestringtoint64(r.AskAmount, scale)
+	askamount, err := common.Parsestringtoint64(r.Data.AskAmount, scale)
 	if err != nil {
 		return common.Ticker{}, err
 	}
-	ticker := common.Ticker{Exchange: exchange, Symbol: r.Symbol, BidPrice: bidprice, BidAmount: bidamount, AskPrice: askprice, AskAmount: askamount}
+	ticker := common.Ticker{
+		Symbol:    r.Data.Symbol,
+		BidPrice:  bidprice,
+		BidAmount: bidamount,
+		AskPrice:  askprice,
+		AskAmount: askamount,
+	}
 	return ticker, nil
 }
