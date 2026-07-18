@@ -49,3 +49,19 @@ func power10(scale int) int64 {
 	}
 	return int64(number)
 }
+
+func Parseint64tostring(n int64, scale int) string {
+	s := strconv.FormatInt(n, 10)
+	if len(s) <= scale {
+		s = strings.Repeat("0", scale-len(s)+1) + s
+	}
+	insertPoint := len(s) - scale
+	integerPart := s[:insertPoint]
+	decimalPart := s[insertPoint:]
+
+	decimalPart = strings.TrimRight(decimalPart, "0")
+	if decimalPart == "" {
+		return integerPart
+	}
+	return integerPart + "." + decimalPart
+}
